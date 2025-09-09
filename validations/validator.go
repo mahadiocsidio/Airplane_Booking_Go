@@ -1,7 +1,5 @@
 package validations
 
-import(
-	"github.com/go-playground/validator/v10"
-)
-
-func
+// import(
+// 	"github.com/go-playground/validator/v10"
+// )

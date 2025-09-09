@@ -2,9 +2,11 @@ package main
 
 import (
 	"airplane_booking_go/config"
+	"airplane_booking_go/controllers"
 	"log"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
@@ -14,6 +16,15 @@ func main() {
     log.Fatal("Error loading .env file")
   }
   connectionString := os.Getenv("connectionString")
-  config.ConnectDB(connectionString)
+  db := os.Getenv("db")
+  client :=config.ConnectDB(connectionString)
+  userCollection := config.GetCollection(client, db, "users")
+  
+  //controller init
+  userController :=controllers.NewUserController(userCollection)
 
+  //router setup
+  r := gin.Default()
+  r.POST("/register", userController.Register)
+  r.Run(":8080")
 }
