@@ -23,12 +23,20 @@ func NewUserController(userCollection *mongo.Collection) *UserController {
 	return &UserController{UserCollection: userCollection}
 }
 
+// ========== REQUEST STRUCT ==========
 type RegisterRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 }
 
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// ========== HANDLERS ==========
+// Register a User
 func (uc *UserController) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -70,11 +78,7 @@ func (uc *UserController) Register(c *gin.Context) {
 	})
 }
 
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
+// Log in With User Data
 func (uc *UserController) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

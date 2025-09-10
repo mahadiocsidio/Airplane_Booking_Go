@@ -2,7 +2,7 @@ package main
 
 import (
 	"airplane_booking_go/config"
-	"airplane_booking_go/controllers"
+  "airplane_booking_go/router"
 	"log"
 	"os"
 
@@ -18,14 +18,9 @@ func main() {
 	connectionString := os.Getenv("connectionString")
 	db := os.Getenv("db")
 	client := config.ConnectDB(connectionString)
-	userCollection := config.GetCollection(client, db, "users")
-
-	//controller init
-	userController := controllers.NewUserController(userCollection)
 
 	//router setup
 	r := gin.Default()
-	r.POST("/register", userController.Register)
-	r.GET("/login", userController.Login)
-	r.Run(":8080")
+	router.UserRoutes(r, client, db)
+  router.FlightRoutes(r, client, db)
 }
