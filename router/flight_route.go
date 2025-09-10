@@ -8,10 +8,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func FlightRoutes(r *gin.Engine, client *mongo.Client, db string){
+func FlightRoutes(r *gin.Engine, client *mongo.Client, db string) {
 	flightCollection := config.GetCollection(client, db, "flights")
 	flightController := controllers.NewFlightController(flightCollection)
 
-	r.POST("/register", flightController.CreateFlight)
-	r.GET("/login", flightController.GetFlights)
+	r.POST("/flights", flightController.CreateFlight)
+	r.GET("/flights", flightController.GetFlights)
 }

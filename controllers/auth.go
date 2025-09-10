@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"airplane_booking_go/models"
+	"airplane_booking_go/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -105,9 +106,15 @@ func (uc *UserController) Login(c *gin.Context) {
 	}
 
 	// TODO: generate JWT token nanti
+	token, err := utils.GenerateToken(user.ID.Hex(), user.Role)
+	if err != nil {
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+	return
+	}
+	
 	c.JSON(http.StatusOK, gin.H{
 		"message"	: "Login Succes",
 		"code"		: "200",
 		"status"	: "OK",
-	})
+		"token"		: token})
 }

@@ -23,4 +23,5 @@ func main() {
 	r := gin.Default()
 	router.UserRoutes(r, client, db)
   router.FlightRoutes(r, client, db)
+  r.Run(":8080")
 }
