@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"airplane_booking_go/models"
+
 	"golang.org/x/crypto/bcrypt"
-	"your_project/models"
 )
 
 type UserController struct {
@@ -65,5 +67,43 @@ func (uc *UserController) Register(c *gin.Context) {
 		"message"	: "user registered successfully",
 		"code"		: "201",
 		"status"	: "Created",
+	})
+}
+
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+func (uc *UserController) Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// cari user by email
+	var user models.User
+	err := uc.UserCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+		return
+	}
+
+	// cek password hash
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+		return
+	}
+
+	// TODO: generate JWT token nanti
+	c.JSON(http.StatusOK, gin.H{
+		"message"	: "Login Succes",
+		"code"		: "200",
+		"status"	: "OK",
 	})
 }

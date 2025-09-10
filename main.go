@@ -11,20 +11,21 @@ import (
 )
 
 func main() {
-  err := godotenv.Load()
-  if err != nil {
-    log.Fatal("Error loading .env file")
-  }
-  connectionString := os.Getenv("connectionString")
-  db := os.Getenv("db")
-  client :=config.ConnectDB(connectionString)
-  userCollection := config.GetCollection(client, db, "users")
-  
-  //controller init
-  userController :=controllers.NewUserController(userCollection)
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	connectionString := os.Getenv("connectionString")
+	db := os.Getenv("db")
+	client := config.ConnectDB(connectionString)
+	userCollection := config.GetCollection(client, db, "users")
 
-  //router setup
-  r := gin.Default()
-  r.POST("/register", userController.Register)
-  r.Run(":8080")
+	//controller init
+	userController := controllers.NewUserController(userCollection)
+
+	//router setup
+	r := gin.Default()
+	r.POST("/register", userController.Register)
+	r.GET("/login", userController.Login)
+	r.Run(":8080")
 }
