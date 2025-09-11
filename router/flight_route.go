@@ -14,4 +14,5 @@ func FlightRoutes(r *gin.Engine, client *mongo.Client, db string) {
 
 	r.POST("/flights", flightController.CreateFlight)
 	r.GET("/flights", flightController.GetFlights)
+	r.PUT("/flights/:id", flightController.UpdateFlight)
 }

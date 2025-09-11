@@ -43,6 +43,13 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// searching for cheapest seat price
+	minPrice := req.Seats[0].Price
+	for _, seat := range req.Seats {
+		if seat.Price < minPrice {
+			minPrice = seat.Price
+		}
+	}
 
 	newFlight := models.Flight{
 		ID:            primitive.NewObjectID(),
@@ -53,7 +60,7 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 		DepartureTime: req.DepartureTime,
 		ArrivalTime:   req.ArrivalTime,
 		Duration:      req.Duration,
-		Price:         req.Price,
+		Price:         minPrice, // start from
 		Seats:         req.Seats,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -94,4 +101,65 @@ func (fc *FlightController) GetFlights(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, flights)
+}
+
+// UpdateFlight → update flight data (admin only ideally)
+func (fc *FlightController) UpdateFlight(c *gin.Context) {
+	flightId := c.Param("id")
+
+	objID, err := primitive.ObjectIDFromHex(flightId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid flight id"})
+		return
+	}
+
+	var req CreateFlightRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// hitung harga seat termurah
+	if len(req.Seats) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "seats cannot be empty"})
+		return
+	}
+	minPrice := req.Seats[0].Price
+	for _, seat := range req.Seats {
+		if seat.Price < minPrice {
+			minPrice = seat.Price
+		}
+	}
+
+	update := bson.M{
+		"airline":        req.Airline,
+		"flight_number":  req.FlightNumber,
+		"departure":      req.Departure,
+		"arrival":        req.Arrival,
+		"departure_time": req.DepartureTime,
+		"arrival_time":   req.ArrivalTime,
+		"duration":       req.Duration,
+		"price":          minPrice,
+		"seats":          req.Seats,
+		"updated_at":     time.Now(),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := fc.FlightCollection.UpdateOne(ctx,
+		bson.M{"_id": objID},
+		bson.M{"$set": update},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update flight"})
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "flight updated successfully"})
 }
