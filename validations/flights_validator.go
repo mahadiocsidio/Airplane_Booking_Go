@@ -1,22 +1,8 @@
 package validations
-
 import(
 	"time"
-	// "github.com/go-playground/validator/v10"
 	"airplane_booking_go/models"
 )
-
-// ========== REQUEST STRUCT ==========
-type RegisterRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
 
 type CreateFlightRequest struct {
 	Airline       string          `json:"airline" binding:"required"`
@@ -28,4 +14,12 @@ type CreateFlightRequest struct {
 	Duration      int             `json:"duration" binding:"required"`
 	Price         float64         `json:"price" binding:"required"`
 	Seats         []models.Seat   `json:"seats" binding:"required"`
+}
+
+type SearchFlightRequest struct {
+	From  string `form:"from" binding:"omitempty,len=3"`              // kode IATA 3 huruf
+	To    string `form:"to" binding:"omitempty,len=3"`
+	Date  string `form:"date" binding:"omitempty,datetime=2006-01-02"` // format: YYYY-MM-DD
+	Page  int    `form:"page,default=1"`
+	Limit int    `form:"limit,default=10"`
 }

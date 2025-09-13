@@ -9,8 +9,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 
 	"airplane_booking_go/models"
+	"airplane_booking_go/validations"
+	"airplane_booking_go/utils"
 )
 
 type FlightController struct {
@@ -162,4 +166,73 @@ func (fc *FlightController) UpdateFlight(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "flight updated successfully"})
+}
+
+func (fc *FlightController) SearchFlights(c *gin.Context) {
+	var req validations.SearchFlightRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	p := utils.GetPagination(c)
+
+	// build filter
+	filter := bson.M{}
+	if req.From != "" {
+		filter["departure.code"] = req.From
+	}
+	if req.To != "" {
+		filter["arrival.code"] = req.To
+	}
+	if req.Date != "" {
+		day, err := time.Parse("2006-01-02", req.Date)
+		if err == nil {
+			start := day
+			end := day.Add(24 * time.Hour)
+			filter["departure_time"] = bson.M{
+				"$gte": start,
+				"$lt":  end,
+			}
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// hitung totalCount untuk pagination
+	totalCount, err := fc.FlightCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count flights"})
+		return
+	}
+
+	opts := options.Find().
+		SetSkip(int64(p.Skip)).
+		SetLimit(int64(p.Limit)).
+		SetSort(bson.M{"departure_time": 1})
+
+	cursor, err := fc.FlightCollection.Find(ctx, filter, opts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flights"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var flights []models.Flight
+	if err = cursor.All(ctx, &flights); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode flights"})
+		return
+	}
+
+	totalPages := int((totalCount + int64(p.Limit) - 1) / int64(p.Limit)) // ceil
+
+	c.JSON(http.StatusOK, gin.H{
+		"page":        p.Page,
+		"limit":       p.Limit,
+		"count":       len(flights),
+		"totalCount":  totalCount,
+		"totalPages":  totalPages,
+		"flights":     flights,
+	})
 }
