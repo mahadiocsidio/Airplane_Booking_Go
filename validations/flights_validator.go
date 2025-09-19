@@ -17,9 +17,13 @@ type CreateFlightRequest struct {
 }
 
 type SearchFlightRequest struct {
-	From  string `form:"from" binding:"omitempty,len=3"`              // kode IATA 3 huruf
-	To    string `form:"to" binding:"omitempty,len=3"`
-	Date  string `form:"date" binding:"omitempty,datetime=2006-01-02"` // format: YYYY-MM-DD
-	Page  int    `form:"page,default=1"`
-	Limit int    `form:"limit,default=10"`
+	From     string  `form:"from" binding:"omitempty,len=3"`
+	To       string  `form:"to" binding:"omitempty,len=3"`
+	Date     string  `form:"date" binding:"omitempty,datetime=2006-01-02"`
+	Airline  string  `form:"airline" binding:"omitempty"`
+	MinPrice float64 `form:"minPrice" binding:"omitempty"`
+	MaxPrice float64 `form:"maxPrice" binding:"omitempty"`
+	Class    string  `form:"class" binding:"omitempty,oneof=economy business first"`
+	Page     int     `form:"page,default=1"`
+	Limit    int     `form:"limit,default=10"`
 }

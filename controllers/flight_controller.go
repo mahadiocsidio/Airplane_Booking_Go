@@ -179,22 +179,21 @@ func (fc *FlightController) SearchFlights(c *gin.Context) {
 
 	// build filter
 	filter := bson.M{}
-	if req.From != "" {
-		filter["departure.code"] = req.From
+	if req.Airline != "" {
+		filter["airline"] = req.Airline
 	}
-	if req.To != "" {
-		filter["arrival.code"] = req.To
-	}
-	if req.Date != "" {
-		day, err := time.Parse("2006-01-02", req.Date)
-		if err == nil {
-			start := day
-			end := day.Add(24 * time.Hour)
-			filter["departure_time"] = bson.M{
-				"$gte": start,
-				"$lt":  end,
-			}
+	if req.MinPrice > 0 || req.MaxPrice > 0 {
+		priceFilter := bson.M{}
+		if req.MinPrice > 0 {
+			priceFilter["$gte"] = req.MinPrice
 		}
+		if req.MaxPrice > 0 {
+			priceFilter["$lte"] = req.MaxPrice
+		}
+		filter["price"] = priceFilter
+	}
+	if req.Class != "" {
+		filter["seats.class"] = req.Class
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

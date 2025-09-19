@@ -30,7 +30,7 @@ type CreateBookingRequest struct {
 	SeatNumbers []string `json:"seatNumbers" binding:"required"`
 }
 
-// GetFlightByID → ambil detail flight by ID
+// GetFlightByID → fetch flight detail by ID
 func (fc *FlightController) GetFlightByID(c *gin.Context) {
 	flightId := c.Param("id")
 
@@ -61,7 +61,7 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 		return
 	}
 
-	// ambil userID dari context
+	// fetch userID from context
 	userID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -77,14 +77,14 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// ambil flight
+	// fetch flight data
 	var flight models.Flight
 	if err := bc.FlightCollection.FindOne(ctx, bson.M{"_id": flightObjID}).Decode(&flight); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
 		return
 	}
 
-	// cek seat availability & kalkulasi total
+	// check seat availability & calculate total
 	var selectedSeats []models.Seat
 	totalPrice := 0.0
 	for _, seatNum := range req.SeatNumbers {
@@ -107,7 +107,7 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 		}
 	}
 
-	// update seat availability secara atomic
+	// update seat availability
 	for _, seatNum := range req.SeatNumbers {
 		result, err := bc.FlightCollection.UpdateOne(
 			ctx,
@@ -130,7 +130,7 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 		}
 	}
 
-	// bikin booking
+	// create booking
 	booking := models.Booking{
 		ID:         primitive.NewObjectID(),
 		UserID:     userID.(primitive.ObjectID),
@@ -151,7 +151,7 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "booking created", "booking": booking})
 }
 
-// GetBookings → ambil semua booking user
+// GetBookings → fetch all booking user
 func (bc *BookingController) GetBookings(c *gin.Context) {
 	userID, exists := c.Get("userId")
 	if !exists {
@@ -176,4 +176,67 @@ func (bc *BookingController) GetBookings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, bookings)
+}
+
+// Make user update their filght to cancelled
+func (bc *BookingController) CancelBooking(c *gin.Context) {
+	bookingId := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(bookingId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// fetch booking
+	var booking models.Booking
+	if err := bc.BookingCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&booking); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "booking not found"})
+		return
+	}
+
+	// double checked if it already canceled
+	if booking.Status == "canceled" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "booking already canceled"})
+		return
+	}
+
+	// update seat in flight (make it available)
+	var flight models.Flight
+	if err := bc.FlightCollection.FindOne(ctx, bson.M{"_id": booking.FlightID}).Decode(&flight); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+		return
+	}
+
+	updatedSeats := flight.Seats
+	for i, seat := range updatedSeats {
+		for _, bookedSeat := range booking.Seats {
+			if seat.Number == bookedSeat.Number {
+				updatedSeats[i].IsAvailable = true
+			}
+		}
+	}
+
+	_, err = bc.FlightCollection.UpdateOne(ctx,
+		bson.M{"_id": booking.FlightID},
+		bson.M{"$set": bson.M{"seats": updatedSeats, "updated_at": time.Now()}},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update flight seats"})
+		return
+	}
+
+	// update status booking
+	_, err = bc.BookingCollection.UpdateOne(ctx,
+		bson.M{"_id": booking.ID},
+		bson.M{"$set": bson.M{"status": "canceled", "updated_at": time.Now()}},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "booking canceled successfully"})
 }
