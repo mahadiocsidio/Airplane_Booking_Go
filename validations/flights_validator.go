@@ -1,19 +1,20 @@
 package validations
-import(
-	"time"
+
+import (
 	"airplane_booking_go/models"
+	"time"
 )
 
 type CreateFlightRequest struct {
-	Airline       string          `json:"airline" binding:"required"`
-	FlightNumber  string          `json:"flightNumber" binding:"required"`
-	Departure     models.Airport  `json:"departure" binding:"required"`
-	Arrival       models.Airport  `json:"arrival" binding:"required"`
-	DepartureTime time.Time       `json:"departureTime" binding:"required"`
-	ArrivalTime   time.Time       `json:"arrivalTime" binding:"required"`
-	Duration      int             `json:"duration" binding:"required"`
-	Price         float64         `json:"price" binding:"required"`
-	Seats         []models.Seat   `json:"seats" binding:"required"`
+	Airline       string         `json:"airline" binding:"required"`
+	FlightNumber  string         `json:"flightNumber" binding:"required"`
+	Departure     models.Airport `json:"departure" binding:"required"`
+	Arrival       models.Airport `json:"arrival" binding:"required"`
+	DepartureTime time.Time      `json:"departureTime" binding:"required"`
+	ArrivalTime   time.Time      `json:"arrivalTime" binding:"required"`
+	Duration      int            `json:"duration" binding:"required"`
+	Price         float64        `json:"price"`
+	Seats         []models.Seat  `json:"seats" binding:"required"`
 }
 
 type SearchFlightRequest struct {

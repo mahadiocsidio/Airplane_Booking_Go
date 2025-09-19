@@ -178,7 +178,7 @@ func (bc *BookingController) GetBookings(c *gin.Context) {
 	c.JSON(http.StatusOK, bookings)
 }
 
-// Make user update their filght to cancelled
+// update booking to cancelled
 func (bc *BookingController) CancelBooking(c *gin.Context) {
 	bookingId := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(bookingId)
@@ -190,53 +190,27 @@ func (bc *BookingController) CancelBooking(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// fetch booking
 	var booking models.Booking
 	if err := bc.BookingCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&booking); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "booking not found"})
 		return
 	}
 
-	// double checked if it already canceled
-	if booking.Status == "canceled" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "booking already canceled"})
-		return
-	}
-
-	// update seat in flight (make it available)
-	var flight models.Flight
-	if err := bc.FlightCollection.FindOne(ctx, bson.M{"_id": booking.FlightID}).Decode(&flight); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
-		return
-	}
-
-	updatedSeats := flight.Seats
-	for i, seat := range updatedSeats {
-		for _, bookedSeat := range booking.Seats {
-			if seat.Number == bookedSeat.Number {
-				updatedSeats[i].IsAvailable = true
-			}
-		}
-	}
-
-	_, err = bc.FlightCollection.UpdateOne(ctx,
-		bson.M{"_id": booking.FlightID},
-		bson.M{"$set": bson.M{"seats": updatedSeats, "updated_at": time.Now()}},
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update flight seats"})
-		return
-	}
-
-	// update status booking
+	// update booking status
 	_, err = bc.BookingCollection.UpdateOne(ctx,
-		bson.M{"_id": booking.ID},
+		bson.M{"_id": objID},
 		bson.M{"$set": bson.M{"status": "canceled", "updated_at": time.Now()}},
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking"})
 		return
 	}
+
+	// update seats to avaiable
+	bc.FlightCollection.UpdateOne(ctx,
+		bson.M{"_id": booking.FlightID, "seats": booking.Seats},
+		bson.M{"$set": bson.M{"seats.$.is_available": true}},
+	)
 
 	c.JSON(http.StatusOK, gin.H{"message": "booking canceled successfully"})
 }

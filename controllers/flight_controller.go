@@ -11,10 +11,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-
 	"airplane_booking_go/models"
-	"airplane_booking_go/validations"
 	"airplane_booking_go/utils"
+	"airplane_booking_go/validations"
 )
 
 type FlightController struct {
@@ -25,24 +24,24 @@ func NewFlightController(flightCollection *mongo.Collection) *FlightController {
 	return &FlightController{FlightCollection: flightCollection}
 }
 
-// ========== REQUEST STRUCT ==========
-type CreateFlightRequest struct {
-	Airline       string          `json:"airline" binding:"required"`
-	FlightNumber  string          `json:"flightNumber" binding:"required"`
-	Departure     models.Airport  `json:"departure" binding:"required"`
-	Arrival       models.Airport  `json:"arrival" binding:"required"`
-	DepartureTime time.Time       `json:"departureTime" binding:"required"`
-	ArrivalTime   time.Time       `json:"arrivalTime" binding:"required"`
-	Duration      int             `json:"duration" binding:"required"`
-	Price         float64         `json:"price" binding:"required"`
-	Seats         []models.Seat   `json:"seats" binding:"required"`
-}
+// // ========== REQUEST STRUCT ==========
+// type CreateFlightRequest struct {
+// 	Airline       string          `json:"airline" binding:"required"`
+// 	FlightNumber  string          `json:"flightNumber" binding:"required"`
+// 	Departure     models.Airport  `json:"departure" binding:"required"`
+// 	Arrival       models.Airport  `json:"arrival" binding:"required"`
+// 	DepartureTime time.Time       `json:"departureTime" binding:"required"`
+// 	ArrivalTime   time.Time       `json:"arrivalTime" binding:"required"`
+// 	Duration      int             `json:"duration" binding:"required"`
+// 	Price         float64         `json:"price" binding:"required"`
+// 	Seats         []models.Seat   `json:"seats" binding:"required"`
+// }
 
 // ========== HANDLERS ==========
 
 // Create flight (admin only ideally)
 func (fc *FlightController) CreateFlight(c *gin.Context) {
-	var req CreateFlightRequest
+	var req validations.CreateFlightRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -80,10 +79,10 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"code"		:"200",
-		"status"	:"OK",
-		"message"	:"data created", 
-		"flight"	: newFlight})
+		"code":    "200",
+		"status":  "OK",
+		"message": "data created",
+		"flight":  newFlight})
 }
 
 // Get all flights
@@ -117,7 +116,7 @@ func (fc *FlightController) UpdateFlight(c *gin.Context) {
 		return
 	}
 
-	var req CreateFlightRequest
+	var req validations.CreateFlightRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -227,11 +226,11 @@ func (fc *FlightController) SearchFlights(c *gin.Context) {
 	totalPages := int((totalCount + int64(p.Limit) - 1) / int64(p.Limit)) // ceil
 
 	c.JSON(http.StatusOK, gin.H{
-		"page":        p.Page,
-		"limit":       p.Limit,
-		"count":       len(flights),
-		"totalCount":  totalCount,
-		"totalPages":  totalPages,
-		"flights":     flights,
+		"page":       p.Page,
+		"limit":      p.Limit,
+		"count":      len(flights),
+		"totalCount": totalCount,
+		"totalPages": totalPages,
+		"flights":    flights,
 	})
 }
