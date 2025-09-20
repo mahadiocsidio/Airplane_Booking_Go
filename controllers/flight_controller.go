@@ -115,11 +115,36 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 
 
 // Get all flights
+// GetAllFlights - list ringkas semua flight dengan pagination + totalCount
 func (fc *FlightController) GetAllFlights(c *gin.Context) {
+	// ambil pagination dari helper
+	pagination := utils.GetPagination(c)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := fc.FlightCollection.Find(ctx, bson.M{})
+	orderBy := c.DefaultQuery("orderBy", "departureTime")
+	sortDir := c.DefaultQuery("sort", "asc")
+
+	sortValue := 1
+	if sortDir == "desc" {
+		sortValue = -1
+	}
+
+	// hitung total flight
+	totalCount, err := fc.FlightCollection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count flights"})
+		return
+	}
+
+	// query pakai limit & skip
+	findOptions := options.Find().
+		SetLimit(int64(pagination.Limit)).
+		SetSkip(int64(pagination.Skip)).
+		SetSort(bson.D{{Key: orderBy, Value: sortValue}})
+
+	cursor, err := fc.FlightCollection.Find(ctx, bson.M{}, findOptions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flights"})
 		return
@@ -132,6 +157,7 @@ func (fc *FlightController) GetAllFlights(c *gin.Context) {
 		return
 	}
 
+	// bikin response ringkas tanpa seats
 	var response []gin.H
 	for _, f := range flights {
 		response = append(response, gin.H{
@@ -147,10 +173,17 @@ func (fc *FlightController) GetAllFlights(c *gin.Context) {
 		})
 	}
 
+	// hitung total pages
+	totalPages := int(math.Ceil(float64(totalCount) / float64(pagination.Limit)))
+
 	c.JSON(http.StatusOK, gin.H{
-		"code":    "200",
-		"status":  "OK",
-		"flights": response,
+		"code":       "200",
+		"status":     "OK",
+		"flights":    response,
+		"page":       pagination.Page,
+		"limit":      pagination.Limit,
+		"totalData":  totalCount,
+		"totalPages": totalPages,
 	})
 }
 
