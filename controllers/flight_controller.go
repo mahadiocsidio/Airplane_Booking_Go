@@ -115,36 +115,65 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 
 
 // Get all flights
-// GetAllFlights - list ringkas semua flight dengan pagination + totalCount
+// GetAllFlights - list all flight with pagination + filter + sort
 func (fc *FlightController) GetAllFlights(c *gin.Context) {
-	// ambil pagination dari helper
-	pagination := utils.GetPagination(c)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	orderBy := c.DefaultQuery("orderBy", "departureTime")
-	sortDir := c.DefaultQuery("sort", "asc")
+	// pagination
+	pagination := utils.GetPagination(c)
 
-	sortValue := 1
-	if sortDir == "desc" {
-		sortValue = -1
+	// filter
+	filter := bson.M{}
+	if airline := c.Query("airline"); airline != "" {
+		filter["airline"] = bson.M{"$regex": airline, "$options": "i"}
+	}
+	if depCity := c.Query("departureCity"); depCity != "" {
+		filter["departure.city"] = bson.M{"$regex": depCity, "$options": "i"}
+	}
+	if arrCity := c.Query("arrivalCity"); arrCity != "" {
+		filter["arrival.city"] = bson.M{"$regex": arrCity, "$options": "i"}
+	}
+	if depDate := c.Query("departureDate"); depDate != "" {
+		// filter by departure date only (ignore time)
+		t, err := time.Parse("2006-01-02", depDate)
+		if err == nil {
+			start := t
+			end := t.Add(24 * time.Hour)
+			filter["departureTime"] = bson.M{
+				"$gte": start,
+				"$lt":  end,
+			}
+		}
 	}
 
-	// hitung total flight
-	totalCount, err := fc.FlightCollection.CountDocuments(ctx, bson.M{})
+	// orderBy
+	orderBy := c.DefaultQuery("orderBy", "departureTime") // default departureTime
+	order := c.DefaultQuery("order", "asc")
+
+	sort := bson.D{}
+	if order == "desc" {
+		sort = append(sort, bson.E{Key: orderBy, Value: -1})
+	} else {
+		sort = append(sort, bson.E{Key: orderBy, Value: 1})
+	}
+
+	// count total
+	total, err := fc.FlightCollection.CountDocuments(ctx, filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count flights"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count documents"})
 		return
 	}
 
-	// query pakai limit & skip
-	findOptions := options.Find().
-		SetLimit(int64(pagination.Limit)).
-		SetSkip(int64(pagination.Skip)).
-		SetSort(bson.D{{Key: orderBy, Value: sortValue}})
-
-	cursor, err := fc.FlightCollection.Find(ctx, bson.M{}, findOptions)
+	// query data
+	cursor, err := fc.FlightCollection.Find(
+		ctx,
+		filter,
+		options.Find().
+			SetSkip(int64(pagination.Skip)).
+			SetLimit(int64(pagination.Limit)).
+			SetSort(sort),
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flights"})
 		return
@@ -152,40 +181,47 @@ func (fc *FlightController) GetAllFlights(c *gin.Context) {
 	defer cursor.Close(ctx)
 
 	var flights []models.Flight
-	if err = cursor.All(ctx, &flights); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse flights"})
+	if err := cursor.All(ctx, &flights); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode flights"})
 		return
 	}
 
-	// bikin response ringkas tanpa seats
 	var response []gin.H
 	for _, f := range flights {
+		totalSeats := len(f.Seats)
+		availableSeats := 0
+		for _, s := range f.Seats {
+			if s.IsAvailable {
+				availableSeats++
+			}
+		}
+
 		response = append(response, gin.H{
-			"id":            f.ID.Hex(),
-			"airline":       f.Airline,
-			"flightNumber":  f.FlightNumber,
-			"departure":     f.Departure,
-			"arrival":       f.Arrival,
-			"departureTime": f.DepartureTime,
-			"arrivalTime":   f.ArrivalTime,
-			"duration":      f.Duration,
-			"price":         f.Price,
+			"id":             f.ID.Hex(),
+			"airline":        f.Airline,
+			"flightNumber":   f.FlightNumber,
+			"departure":      f.Departure,
+			"arrival":        f.Arrival,
+			"departureTime":  f.DepartureTime,
+			"arrivalTime":    f.ArrivalTime,
+			"duration":       f.Duration,
+			"price":          f.Price,
+			"totalSeats":     totalSeats,
+			"availableSeats": availableSeats,
 		})
 	}
 
-	// hitung total pages
-	totalPages := int(math.Ceil(float64(totalCount) / float64(pagination.Limit)))
-
 	c.JSON(http.StatusOK, gin.H{
-		"code":       "200",
-		"status":     "OK",
-		"flights":    response,
-		"page":       pagination.Page,
-		"limit":      pagination.Limit,
-		"totalData":  totalCount,
-		"totalPages": totalPages,
+		"code":    200,
+		"status":  "OK",
+		"message": "success get flights",
+		"page":    pagination.Page,
+		"limit":   pagination.Limit,
+		"total":   total,
+		"flights": response,
 	})
 }
+
 
 func (fc *FlightController) GetFlightDetail(c *gin.Context) {
 	flightID := c.Param("id")
