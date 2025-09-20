@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
+	"math"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -46,9 +48,34 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// searching for cheapest seat price
-	minPrice := req.Seats[0].Price
-	for _, seat := range req.Seats {
+
+	// generate seats otomatis
+	var seats []models.Seat
+	minPrice := math.MaxFloat64
+
+	// business seats
+	for i := 1; i <= req.SeatConfig.Business.Count; i++ {
+		seat := models.Seat{
+			Number:      fmt.Sprintf("B%d", i),
+			Class:       "business",
+			IsAvailable: true,
+			Price:       req.SeatConfig.Business.Price,
+		}
+		seats = append(seats, seat)
+		if seat.Price < minPrice {
+			minPrice = seat.Price
+		}
+	}
+
+	// economy seats
+	for i := 1; i <= req.SeatConfig.Economy.Count; i++ {
+		seat := models.Seat{
+			Number:      fmt.Sprintf("E%d", i),
+			Class:       "economy",
+			IsAvailable: true,
+			Price:       req.SeatConfig.Economy.Price,
+		}
+		seats = append(seats, seat)
 		if seat.Price < minPrice {
 			minPrice = seat.Price
 		}
@@ -63,8 +90,8 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 		DepartureTime: req.DepartureTime,
 		ArrivalTime:   req.ArrivalTime,
 		Duration:      req.Duration,
-		Price:         minPrice, // start from
-		Seats:         req.Seats,
+		Price:         minPrice, // harga termurah
+		Seats:         seats,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -81,12 +108,14 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"code":    "200",
 		"status":  "OK",
-		"message": "data created",
-		"flight":  newFlight})
+		"message": "flight created",
+		"flight":  newFlight,
+	})
 }
 
+
 // Get all flights
-func (fc *FlightController) GetFlights(c *gin.Context) {
+func (fc *FlightController) GetAllFlights(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -99,15 +128,60 @@ func (fc *FlightController) GetFlights(c *gin.Context) {
 
 	var flights []models.Flight
 	if err = cursor.All(ctx, &flights); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode flights"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse flights"})
 		return
 	}
 
-	c.JSON(http.StatusOK, flights)
+	var response []gin.H
+	for _, f := range flights {
+		response = append(response, gin.H{
+			"id":            f.ID.Hex(),
+			"airline":       f.Airline,
+			"flightNumber":  f.FlightNumber,
+			"departure":     f.Departure,
+			"arrival":       f.Arrival,
+			"departureTime": f.DepartureTime,
+			"arrivalTime":   f.ArrivalTime,
+			"duration":      f.Duration,
+			"price":         f.Price,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    "200",
+		"status":  "OK",
+		"flights": response,
+	})
+}
+
+func (fc *FlightController) GetFlightDetail(c *gin.Context) {
+	flightID := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(flightID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid flight id"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var flight models.Flight
+	err = fc.FlightCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&flight)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    "200",
+		"status":  "OK",
+		"flight":  flight,
+	})
 }
 
 // UpdateFlight → update flight data (admin only ideally)
 func (fc *FlightController) UpdateFlight(c *gin.Context) {
+	
 	flightId := c.Param("id")
 
 	objID, err := primitive.ObjectIDFromHex(flightId)
@@ -116,7 +190,7 @@ func (fc *FlightController) UpdateFlight(c *gin.Context) {
 		return
 	}
 
-	var req validations.CreateFlightRequest
+	var req validations.UpdateFlight
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

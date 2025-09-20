@@ -5,17 +5,25 @@ import (
 	"time"
 )
 
+type SeatConfig struct {
+	Count int     `json:"count" binding:"required"`
+	Price float64 `json:"price" binding:"required"`
+}
+
 type CreateFlightRequest struct {
-	Airline       string         `json:"airline" binding:"required"`
-	FlightNumber  string         `json:"flightNumber" binding:"required"`
+	Airline       string    `json:"airline" binding:"required"`
+	FlightNumber  string    `json:"flightNumber" binding:"required"`
 	Departure     models.Airport `json:"departure" binding:"required"`
 	Arrival       models.Airport `json:"arrival" binding:"required"`
-	DepartureTime time.Time      `json:"departureTime" binding:"required"`
-	ArrivalTime   time.Time      `json:"arrivalTime" binding:"required"`
-	Duration      int            `json:"duration" binding:"required"`
-	Price         float64        `json:"price"`
-	Seats         []models.Seat  `json:"seats" binding:"required"`
+	DepartureTime time.Time `json:"departureTime" binding:"required"`
+	ArrivalTime   time.Time `json:"arrivalTime" binding:"required"`
+	Duration      int       `json:"duration" binding:"required"`
+	SeatConfig    struct {
+		Business SeatConfig `json:"business"`
+		Economy  SeatConfig `json:"economy"`
+	} `json:"seatConfig" binding:"required"`
 }
+
 
 type SearchFlightRequest struct {
 	From     string  `form:"from" binding:"omitempty,len=3"`
@@ -27,4 +35,15 @@ type SearchFlightRequest struct {
 	Class    string  `form:"class" binding:"omitempty,oneof=economy business first"`
 	Page     int     `form:"page,default=1"`
 	Limit    int     `form:"limit,default=10"`
+}
+type UpdateFlight struct {
+	Airline       string         `json:"airline" binding:"required"`
+	FlightNumber  string         `json:"flightNumber" binding:"required"`
+	Departure     models.Airport `json:"departure" binding:"required"`
+	Arrival       models.Airport `json:"arrival" binding:"required"`
+	DepartureTime time.Time      `json:"departureTime" binding:"required"`
+	ArrivalTime   time.Time      `json:"arrivalTime" binding:"required"`
+	Duration      int            `json:"duration" binding:"required"`
+	Price         float64        `json:"price"`
+	Seats         []models.Seat  `json:"seats" binding:"required"`
 }

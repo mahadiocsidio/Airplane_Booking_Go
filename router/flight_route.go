@@ -13,6 +13,7 @@ func FlightRoutes(r *gin.Engine, client *mongo.Client, db string) {
 	flightController := controllers.NewFlightController(flightCollection)
 
 	r.POST("/flights", flightController.CreateFlight)
-	r.GET("/flights", flightController.GetFlights)
+	r.GET("/flights", flightController.GetAllFlights)
+	r.GET("/flights/:id", flightController.GetFlightByID)
 	r.PUT("/flights/:id", flightController.UpdateFlight)
 }
