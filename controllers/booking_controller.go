@@ -3,6 +3,7 @@ package controllers
 import(
 	"context"
 	"net/http"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -74,81 +75,96 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// fetch flight data
-	var flight models.Flight
-	if err := bc.FlightCollection.FindOne(ctx, bson.M{"_id": flightObjID}).Decode(&flight); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+	ctx := context.Background()
+	session, err := bc.FlightCollection.Database().Client().StartSession()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start session"})
 		return
 	}
+	defer session.EndSession(ctx)
 
-	// check seat availability & calculate total
-	var selectedSeats []models.Seat
-	totalPrice := 0.0
-	for _, seatNum := range req.SeatNumbers {
-		found := false
-		for _, seat := range flight.Seats {
-			if seat.Number == seatNum {
-				found = true
-				if !seat.IsAvailable {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "seat " + seatNum + " is not available"})
-					return
+	var booking models.Booking
+
+	// transaction function
+	callback := func(sessCtx mongo.SessionContext) (interface{}, error) {
+		// fetch flight data
+		var flight models.Flight
+		if err := bc.FlightCollection.FindOne(sessCtx, bson.M{"_id": flightObjID}).Decode(&flight); err != nil {
+			return nil, fmt.Errorf("flight not found")
+		}
+
+		// check seats avaiable + count total
+		var selectedSeats []models.Seat
+		totalPrice := 0.0
+		for _, seatNum := range req.SeatNumbers {
+			found := false
+			for _, seat := range flight.Seats {
+				if seat.Number == seatNum {
+					found = true
+					if !seat.IsAvailable {
+						return nil, fmt.Errorf("seat %s not available", seatNum)
+					}
+					selectedSeats = append(selectedSeats, seat)
+					totalPrice += seat.Price
+					break
 				}
-				selectedSeats = append(selectedSeats, seat)
-				totalPrice += seat.Price
-				break
+			}
+			if !found {
+				return nil, fmt.Errorf("seat %s not found", seatNum)
 			}
 		}
-		if !found {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "seat " + seatNum + " not found"})
-			return
-		}
-	}
 
-	// update seat availability
-	for _, seatNum := range req.SeatNumbers {
-		result, err := bc.FlightCollection.UpdateOne(
-			ctx,
-			bson.M{
-				"_id": flightObjID,
-				"seats": bson.M{
-					"$elemMatch": bson.M{"number": seatNum, "is_available": true},
+		// update seats into unavailable (bulk update)
+		for _, seatNum := range req.SeatNumbers {
+			result, err := bc.FlightCollection.UpdateOne(
+				sessCtx,
+				bson.M{
+					"_id": flightObjID,
+					"seats": bson.M{
+						"$elemMatch": bson.M{"number": seatNum, "isAvailable": true},
+					},
 				},
-			},
-			bson.M{
-				"$set": bson.M{
-					"seats.$.is_available": false,
-					"updated_at":           time.Now(),
+				bson.M{
+					"$set": bson.M{
+						"seats.$.isAvailable": false,
+						"updated_at":           time.Now(),
+					},
 				},
-			},
-		)
-		if err != nil || result.ModifiedCount == 0 {
-			c.JSON(http.StatusConflict, gin.H{"error": "seat " + seatNum + " just got booked"})
-			return
+			)
+			if err != nil || result.ModifiedCount == 0 {
+				return nil, fmt.Errorf("seat %s just got booked", seatNum)
+			}
 		}
+
+		// buat booking baru
+		booking = models.Booking{
+			ID:         primitive.NewObjectID(),
+			UserID:     userID.(primitive.ObjectID),
+			FlightID:   flightObjID,
+			Seats:      selectedSeats,
+			TotalPrice: totalPrice,
+			Status:     "confirmed", // nanti bisa diganti "pending" kalau ada pembayaran
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+
+		if _, err := bc.BookingCollection.InsertOne(sessCtx, booking); err != nil {
+			return nil, fmt.Errorf("failed to insert booking: %v", err)
+		}
+
+		return nil, nil
 	}
 
-	// create booking
-	booking := models.Booking{
-		ID:         primitive.NewObjectID(),
-		UserID:     userID.(primitive.ObjectID),
-		FlightID:   flightObjID,
-		Seats:      selectedSeats,
-		TotalPrice: totalPrice,
-		Status:     "confirmed",
-		BookedAt:   time.Now(),
-		UpdatedAt:  time.Now(),
-	}
-
-	_, err = bc.BookingCollection.InsertOne(ctx, booking)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create booking"})
+	// jalankan transaksi
+	if _, err = session.WithTransaction(ctx, callback); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "booking created", "booking": booking})
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "booking created",
+		"booking": booking,
+	})
 }
 
 // GetBookings → fetch all booking user
