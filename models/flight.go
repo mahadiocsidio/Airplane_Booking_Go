@@ -16,7 +16,7 @@ type Flight struct {
 	DepartureTime time.Time          `bson:"departureTime" json:"departureTime"`
 	ArrivalTime   time.Time          `bson:"arrivalTime" json:"arrivalTime"`
 	Duration      int                `bson:"duration" json:"duration"`
-	Price         float64            `bson:"price" json:"price"`
+	MinPrice      float64            `bson:"minPrice" json:"minPrice"`
 	Seats         []Seat             `bson:"seats" json:"seats"`
 	CreatedAt     time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt     time.Time          `bson:"updatedAt" json:"updatedAt"`

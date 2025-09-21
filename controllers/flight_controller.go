@@ -3,9 +3,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
-	"math"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -90,7 +90,7 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 		DepartureTime: req.DepartureTime,
 		ArrivalTime:   req.ArrivalTime,
 		Duration:      req.Duration,
-		Price:         minPrice, // harga termurah
+		MinPrice:      minPrice, // harga termurah
 		Seats:         seats,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -112,7 +112,6 @@ func (fc *FlightController) CreateFlight(c *gin.Context) {
 		"flight":  newFlight,
 	})
 }
-
 
 // Get all flights
 // GetAllFlights - list all flight with pagination + filter + sort
@@ -205,7 +204,7 @@ func (fc *FlightController) GetAllFlights(c *gin.Context) {
 			"departureTime":  f.DepartureTime,
 			"arrivalTime":    f.ArrivalTime,
 			"duration":       f.Duration,
-			"price":          f.Price,
+			"minPrice":       f.MinPrice,
 			"totalSeats":     totalSeats,
 			"availableSeats": availableSeats,
 		})
@@ -222,8 +221,10 @@ func (fc *FlightController) GetAllFlights(c *gin.Context) {
 	})
 }
 
-
 func (fc *FlightController) GetFlightDetail(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	flightID := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(flightID)
 	if err != nil {
@@ -231,26 +232,48 @@ func (fc *FlightController) GetFlightDetail(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	var flight models.Flight
 	err = fc.FlightCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&flight)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "flight not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flight"})
+		}
 		return
 	}
 
+	// count seat availability
+	totalSeats := len(flight.Seats)
+	availableSeats := 0
+	for _, s := range flight.Seats {
+		if s.IsAvailable {
+			availableSeats++
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"code":    "200",
-		"status":  "OK",
-		"flight":  flight,
+		"code":           200,
+		"status":         "OK",
+		"message":        "success get flight detail",
+		"id":             flight.ID.Hex(),
+		"airline":        flight.Airline,
+		"flightNumber":   flight.FlightNumber,
+		"departure":      flight.Departure,
+		"arrival":        flight.Arrival,
+		"departureTime":  flight.DepartureTime,
+		"arrivalTime":    flight.ArrivalTime,
+		"duration":       flight.Duration,
+		"minPrice":       flight.MinPrice,
+		"totalSeats":     totalSeats,
+		"availableSeats": availableSeats,
+		"seats":          flight.Seats, // full seat list
 	})
 }
 
 // UpdateFlight → update flight data (admin only ideally)
 func (fc *FlightController) UpdateFlight(c *gin.Context) {
-	
+
 	flightId := c.Param("id")
 
 	objID, err := primitive.ObjectIDFromHex(flightId)
