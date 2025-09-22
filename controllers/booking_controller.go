@@ -169,7 +169,37 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 }
 
 // GetBookings → fetch all booking user
-func (bc *BookingController) GetBookings(c *gin.Context) {
+func (bc *BookingController) GetAllBookings(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// filter opsional
+	filter := bson.M{}
+	if status := c.Query("status"); status != "" {
+		filter["status"] = status
+	}
+
+	cursor, err := bc.BookingCollection.Find(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bookings"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var bookings []models.Booking
+	if err := cursor.All(ctx, &bookings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "OK",
+		"bookings": bookings,
+	})
+}
+
+func (bc *BookingController) GetUserBookings(c *gin.Context) {
+	// ambil userId dari context (udah di-set waktu auth)
 	userID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -179,7 +209,9 @@ func (bc *BookingController) GetBookings(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := bc.BookingCollection.Find(ctx, bson.M{"userId": userID.(primitive.ObjectID)})
+	cursor, err := bc.BookingCollection.Find(ctx, bson.M{
+		"userId": userID.(primitive.ObjectID),
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bookings"})
 		return
@@ -187,12 +219,15 @@ func (bc *BookingController) GetBookings(c *gin.Context) {
 	defer cursor.Close(ctx)
 
 	var bookings []models.Booking
-	if err = cursor.All(ctx, &bookings); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode bookings"})
+	if err := cursor.All(ctx, &bookings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse bookings"})
 		return
 	}
 
-	c.JSON(http.StatusOK, bookings)
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "OK",
+		"bookings": bookings,
+	})
 }
 
 // update booking to cancelled
