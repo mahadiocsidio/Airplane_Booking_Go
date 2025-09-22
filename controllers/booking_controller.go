@@ -5,6 +5,7 @@ import(
 	"net/http"
 	"fmt"
 	"time"
+	"errors"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -196,37 +197,70 @@ func (bc *BookingController) GetBookings(c *gin.Context) {
 
 // update booking to cancelled
 func (bc *BookingController) CancelBooking(c *gin.Context) {
-	bookingId := c.Param("id")
-	objID, err := primitive.ObjectIDFromHex(bookingId)
+	bookingID := c.Param("id")
+	bookingObjID, err := primitive.ObjectIDFromHex(bookingID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bookingId"})
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var booking models.Booking
-	if err := bc.BookingCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&booking); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "booking not found"})
-		return
-	}
-
-	// update booking status
-	_, err = bc.BookingCollection.UpdateOne(ctx,
-		bson.M{"_id": objID},
-		bson.M{"$set": bson.M{"status": "canceled", "updated_at": time.Now()}},
-	)
+	// start session
+	session, err := bc.BookingCollection.Database().Client().StartSession()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start session"})
+		return
+	}
+	defer session.EndSession(ctx)
+
+	err = mongo.WithSession(ctx, session, func(sc mongo.SessionContext) error {
+		if err := session.StartTransaction(); err != nil {
+			return err
+		}
+
+		// fetch booking
+		var booking models.Booking
+		if err := bc.BookingCollection.FindOne(sc, bson.M{"_id": bookingObjID}).Decode(&booking); err != nil {
+			return err
+		}
+
+		if booking.Status != "confirmed" {
+			return errors.New("booking is not active")
+		}
+
+		// update booking status
+		_, err = bc.BookingCollection.UpdateOne(
+			sc,
+			bson.M{"_id": bookingObjID},
+			bson.M{"$set": bson.M{"status": "cancelled", "updated_at": time.Now()}},
+		)
+		if err != nil {
+			return err
+		}
+
+		// release seats back to available
+		for _, seat := range booking.Seats {
+			_, err := bc.FlightCollection.UpdateOne(
+				sc,
+				bson.M{"_id": booking.FlightID, "seats.number": seat.Number},
+				bson.M{"$set": bson.M{"seats.$.is_available": true, "updated_at": time.Now()}},
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return session.CommitTransaction(sc)
+	})
+
+	if err != nil {
+		session.AbortTransaction(ctx)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// update seats to avaiable
-	bc.FlightCollection.UpdateOne(ctx,
-		bson.M{"_id": booking.FlightID, "seats": booking.Seats},
-		bson.M{"$set": bson.M{"seats.$.is_available": true}},
-	)
-
-	c.JSON(http.StatusOK, gin.H{"message": "booking canceled successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "booking cancelled successfully"})
 }
+
