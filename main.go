@@ -2,7 +2,7 @@ package main
 
 import (
 	"airplane_booking_go/config"
-  "airplane_booking_go/router"
+  	"airplane_booking_go/router"
 	"log"
 	"os"
 
@@ -23,5 +23,6 @@ func main() {
 	r := gin.Default()
 	router.UserRoutes(r, client, db)
   	router.FlightRoutes(r, client, db)
+	router.BookRoutes(r, client, db)
   	r.Run(":8080")
 }

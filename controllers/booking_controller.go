@@ -1,18 +1,20 @@
 package controllers
 
-import(
+import (
 	"context"
-	"net/http"
-	"fmt"
-	"time"
 	"errors"
+	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"airplane_booking_go/models"
+	"airplane_booking_go/utils"
 )
 
 type BookingController struct {
@@ -170,16 +172,37 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 
 // GetBookings → fetch all booking user
 func (bc *BookingController) GetAllBookings(c *gin.Context) {
+	role, _ := c.Get("role")
+	if role != "admin" {
+    	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden, admin only"})
+    	return
+	}
+
+	pagination := utils.GetPagination(c)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// filter opsional
 	filter := bson.M{}
 	if status := c.Query("status"); status != "" {
 		filter["status"] = status
 	}
 
-	cursor, err := bc.BookingCollection.Find(ctx, filter)
+	// hitung total documents
+	total, err := bc.BookingCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count bookings"})
+		return
+	}
+
+	cursor, err := bc.BookingCollection.Find(
+		ctx,
+		filter,
+		options.Find().
+			SetSkip(int64(pagination.Skip)).
+			SetLimit(int64(pagination.Limit)).
+			SetSort(bson.D{{Key: "createdAt", Value: -1}}),
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bookings"})
 		return
@@ -194,24 +217,42 @@ func (bc *BookingController) GetAllBookings(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "OK",
+		"total":    total,
+		"page":     pagination.Page,
+		"limit":    pagination.Limit,
 		"bookings": bookings,
 	})
 }
 
 func (bc *BookingController) GetUserBookings(c *gin.Context) {
-	// ambil userId dari context (udah di-set waktu auth)
 	userID, exists := c.Get("userId")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
+	pagination := utils.GetPagination(c)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := bc.BookingCollection.Find(ctx, bson.M{
-		"userId": userID.(primitive.ObjectID),
-	})
+	filter := bson.M{"userId": userID.(primitive.ObjectID)}
+
+	// hitung total documents
+	total, err := bc.BookingCollection.CountDocuments(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count bookings"})
+		return
+	}
+
+	cursor, err := bc.BookingCollection.Find(
+		ctx,
+		filter,
+		options.Find().
+			SetSkip(int64(pagination.Skip)).
+			SetLimit(int64(pagination.Limit)).
+			SetSort(bson.D{{Key: "createdAt", Value: -1}}),
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bookings"})
 		return
@@ -226,6 +267,9 @@ func (bc *BookingController) GetUserBookings(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "OK",
+		"total":    total,
+		"page":     pagination.Page,
+		"limit":    pagination.Limit,
 		"bookings": bookings,
 	})
 }
