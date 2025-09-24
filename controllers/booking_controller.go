@@ -314,9 +314,32 @@ func (bc *BookingController) GetUserBookingDetail(c *gin.Context) {
         return
     }
 
+	var flight models.Flight
+	err = bc.FlightCollection.FindOne(ctx, bson.M{"_id": booking.FlightID}).Decode(&flight)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch flight"})
+		return
+	}
+	data := gin.H{
+		"bookingId":   booking.ID,
+		"status":      booking.Status,
+		"seats":       booking.Seats,
+		"totalPrice":  booking.TotalPrice,
+		"bookedAt":    booking.CreatedAt,
+		"flight": gin.H{
+			"airline":       flight.Airline,
+			"flightNumber":  flight.FlightNumber,
+			"departure":     flight.Departure,
+			"arrival":       flight.Arrival,
+			"departureTime": flight.DepartureTime,
+			"arrivalTime":   flight.ArrivalTime,
+			"duration":      flight.Duration,
+		},
+	}
     c.JSON(http.StatusOK, gin.H{
         "status":  "OK",
-        "booking": booking,
+		"message":	"Success",
+        "data": data,
     })
 }
 
