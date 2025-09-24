@@ -188,7 +188,7 @@ func (bc *BookingController) GetAllBookings(c *gin.Context) {
 		filter["status"] = status
 	}
 
-	// hitung total documents
+	// count documents total
 	total, err := bc.BookingCollection.CountDocuments(ctx, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count bookings"})
@@ -209,11 +209,19 @@ func (bc *BookingController) GetAllBookings(c *gin.Context) {
 	}
 	defer cursor.Close(ctx)
 
-	var bookings []models.Booking
-	if err := cursor.All(ctx, &bookings); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse bookings"})
-		return
-	}
+	// var bookings []models.Booking
+	// if err := cursor.All(ctx, &bookings); err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse bookings"})
+	// 	return
+	// }
+	var bookings []struct {
+        ID         primitive.ObjectID `bson:"_id" json:"id"`
+        UserID     primitive.ObjectID `bson:"userId" json:"userId"`
+        FlightID   primitive.ObjectID `bson:"flightId" json:"flightId"`
+        TotalPrice float64            `bson:"totalPrice" json:"totalPrice"`
+        Status     string             `bson:"status" json:"status"`
+        CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
+    }
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "OK",
@@ -273,6 +281,45 @@ func (bc *BookingController) GetUserBookings(c *gin.Context) {
 		"bookings": bookings,
 	})
 }
+
+func (bc *BookingController) GetUserBookingDetail(c *gin.Context) {
+    userID, exists := c.Get("userId")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+        return
+    }
+
+    bookingID := c.Param("id")
+    bookingObjID, err := primitive.ObjectIDFromHex(bookingID)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
+        return
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    var booking models.Booking
+    err = bc.BookingCollection.FindOne(ctx, bson.M{
+        "_id":    bookingObjID,
+        "userId": userID.(primitive.ObjectID), // pastikan booking ini milik user
+    }).Decode(&booking)
+
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, gin.H{"error": "booking not found"})
+        } else {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch booking"})
+        }
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "status":  "OK",
+        "booking": booking,
+    })
+}
+
 
 // update booking to cancelled
 func (bc *BookingController) CancelBooking(c *gin.Context) {

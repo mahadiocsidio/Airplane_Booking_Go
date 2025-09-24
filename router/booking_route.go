@@ -16,7 +16,7 @@ func BookRoutes(r *gin.Engine, client *mongo.Client, db string) {
 
 	booking := r.Group("/booking", middlewares.AuthMiddleware())
 	{
-    	booking.POST("/", bookingController.CreateBooking)
+    	booking.POST("/", middlewares.AuthMiddleware(), bookingController.CreateBooking)
     	booking.GET("/", bookingController.GetAllBookings)
     	booking.GET("/user", bookingController.GetUserBookings)
     	booking.PUT("/:id/cancel", bookingController.CancelBooking)
