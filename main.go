@@ -8,6 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/swaggo/gin-swagger"
+	"github.com/swaggo/swag/cmd/swag"
+	"github.com/swaggo/files"
 )
 // @title Airplane_Booking API
 // @version 1.0
@@ -24,6 +27,7 @@ func main() {
 
 	//router setup
 	r := gin.Default()
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.UserRoutes(r, client, db)
   	router.FlightRoutes(r, client, db)
 	router.BookRoutes(r, client, db)
