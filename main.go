@@ -9,7 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
-
+// @title Airplane_Booking API
+// @version 1.0
+// @description This is a backend for airplane booking system.
+// @host localhost:8080
 func main() {
 	err := godotenv.Load()
 	if err != nil {

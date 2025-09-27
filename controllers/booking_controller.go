@@ -56,7 +56,17 @@ func (fc *FlightController) GetFlightByID(c *gin.Context) {
 
 	c.JSON(http.StatusOK, flight)
 }
-
+// CreateBooking godoc
+// @Summary Create a new booking
+// @Description User creates a booking by selecting flight and seats
+// @Tags booking
+// @Accept json
+// @Produce json
+// @Param booking body CreateBookingRequest true "Booking request body"
+// @Success 201 {object} models.Booking
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /booking [post]
 // CreateBooking → user booking kursi
 func (bc *BookingController) CreateBooking(c *gin.Context) {
 	var req CreateBookingRequest

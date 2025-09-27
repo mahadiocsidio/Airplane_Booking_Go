@@ -1,4 +1,89 @@
+definitions:
+  controllers.CreateBookingRequest:
+    properties:
+      flightId:
+        type: string
+      seatNumbers:
+        items:
+          type: string
+        type: array
+    required:
+    - flightId
+    - seatNumbers
+    type: object
+  models.Booking:
+    properties:
+      createdAt:
+        type: string
+      flightId:
+        type: string
+      id:
+        type: string
+      seats:
+        description: 'seat numbers, ex: ["12A", "12B"]'
+        items:
+          $ref: '#/definitions/models.Seat'
+        type: array
+      status:
+        description: pending, confirmed, cancelled
+        type: string
+      totalPrice:
+        type: number
+      updatedAt:
+        type: string
+      userId:
+        type: string
+    type: object
+  models.Seat:
+    properties:
+      class:
+        type: string
+      isAvailable:
+        type: boolean
+      number:
+        type: string
+      price:
+        type: number
+    type: object
+host: localhost:8080
 info:
   contact: {}
-paths: {}
+  description: This is a backend for airplane booking system.
+  title: Airplane_Booking API
+  version: "1.0"
+paths:
+  /booking:
+    post:
+      consumes:
+      - application/json
+      description: User creates a booking by selecting flight and seats
+      parameters:
+      - description: Booking request body
+        in: body
+        name: booking
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateBookingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Booking'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new booking
+      tags:
+      - booking
 swagger: "2.0"
