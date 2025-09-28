@@ -66,7 +66,7 @@ func (fc *FlightController) GetFlightByID(c *gin.Context) {
 // @Success 201 {object} models.Booking
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /booking [post]
+// @Router /book [post]
 // CreateBooking → user booking kursi
 func (bc *BookingController) CreateBooking(c *gin.Context) {
 	var req CreateBookingRequest

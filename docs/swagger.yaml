@@ -52,7 +52,7 @@ info:
   title: Airplane_Booking API
   version: "1.0"
 paths:
-  /booking:
+  /book:
     post:
       consumes:
       - application/json

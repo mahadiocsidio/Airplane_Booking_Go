@@ -44,6 +44,18 @@ func (uc *UserController) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	// check if email already exists
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	count, err := uc.UserCollection.CountDocuments(ctx, bson.M{"email": req.Email})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check existing email"})
+		return
+	}
+	if count > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email already in use"})
+		return
+	}
 
 	// hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -61,9 +73,6 @@ func (uc *UserController) Register(c *gin.Context) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	_, err = uc.UserCollection.InsertOne(ctx, newUser)
 	if err != nil {

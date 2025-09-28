@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/booking": {
+        "/book": {
             "post": {
                 "description": "User creates a booking by selecting flight and seats",
                 "consumes": [

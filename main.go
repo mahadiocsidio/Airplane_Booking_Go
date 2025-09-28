@@ -3,13 +3,13 @@ package main
 import (
 	"airplane_booking_go/config"
   	"airplane_booking_go/router"
+	_ "airplane_booking_go/docs"
 	"log"
 	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"github.com/swaggo/gin-swagger"
-	"github.com/swaggo/swag/cmd/swag"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/swaggo/files"
 )
 // @title Airplane_Booking API

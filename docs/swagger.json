@@ -8,7 +8,7 @@
     },
     "host": "localhost:8080",
     "paths": {
-        "/booking": {
+        "/book": {
             "post": {
                 "description": "User creates a booking by selecting flight and seats",
                 "consumes": [
