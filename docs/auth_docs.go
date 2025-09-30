@@ -1,7 +1,7 @@
 package docs
 
 // ===================== Register =====================
-
+//create doc for register user
 // @Summary Register a new user
 // @Description Register a new account with name, email, and password
 // @Tags auth

@@ -59,7 +59,7 @@ func (fc *FlightController) GetFlightByID(c *gin.Context) {
 // @Tags booking
 // @Accept json
 // @Produce json
-// @Param booking body CreateBookingRequest true "Booking request body"
+// @Param booking body validations.CreateBookingRequest true "Booking request body"
 // @Success 201 {object} models.Booking
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string

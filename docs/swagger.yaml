@@ -1,15 +1,27 @@
 definitions:
-  controllers.CreateBookingRequest:
+  controllers.LoginRequest:
     properties:
-      flightId:
+      email:
         type: string
-      seatNumbers:
-        items:
-          type: string
-        type: array
+      password:
+        type: string
     required:
-    - flightId
-    - seatNumbers
+    - email
+    - password
+    type: object
+  controllers.RegisterRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - name
+    - password
     type: object
   models.Booking:
     properties:
@@ -45,6 +57,18 @@ definitions:
       price:
         type: number
     type: object
+  validations.CreateBookingRequest:
+    properties:
+      flightId:
+        type: string
+      seatNumbers:
+        items:
+          type: string
+        type: array
+    required:
+    - flightId
+    - seatNumbers
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -63,7 +87,7 @@ paths:
         name: booking
         required: true
         schema:
-          $ref: '#/definitions/controllers.CreateBookingRequest'
+          $ref: '#/definitions/validations.CreateBookingRequest'
       produces:
       - application/json
       responses:
@@ -86,4 +110,82 @@ paths:
       summary: Create a new booking
       tags:
       - booking
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Login with email and password, returns JWT token
+      parameters:
+      - description: User login request
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login user
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new account with name, email, and password
+      parameters:
+      - description: User registration request
+        in: body
+        name: register
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
 swagger: "2.0"
