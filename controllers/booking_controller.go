@@ -15,6 +15,7 @@ import (
 
 	"airplane_booking_go/models"
 	"airplane_booking_go/utils"
+	"airplane_booking_go/validations"
 )
 
 type BookingController struct {
@@ -29,10 +30,6 @@ func NewBookingController(bookingColl, flightColl *mongo.Collection) *BookingCon
 	}
 }
 
-type CreateBookingRequest struct {
-	FlightID    string   `json:"flightId" binding:"required"`
-	SeatNumbers []string `json:"seatNumbers" binding:"required"`
-}
 
 // GetFlightByID → fetch flight detail by ID
 func (fc *FlightController) GetFlightByID(c *gin.Context) {
@@ -69,7 +66,7 @@ func (fc *FlightController) GetFlightByID(c *gin.Context) {
 // @Router /book [post]
 // CreateBooking → user booking kursi
 func (bc *BookingController) CreateBooking(c *gin.Context) {
-	var req CreateBookingRequest
+	var req validations.CreateBookingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -182,6 +179,7 @@ func (bc *BookingController) CreateBooking(c *gin.Context) {
 
 // GetBookings → fetch all booking user
 func (bc *BookingController) GetAllBookings(c *gin.Context) {
+	//check if admin
 	role, _ := c.Get("role")
 	if role != "admin" {
     	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden, admin only"})
@@ -352,7 +350,6 @@ func (bc *BookingController) GetUserBookingDetail(c *gin.Context) {
         "data": data,
     })
 }
-
 
 // update booking to cancelled
 func (bc *BookingController) CancelBooking(c *gin.Context) {
